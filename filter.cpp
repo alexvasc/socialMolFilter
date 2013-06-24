@@ -10,7 +10,8 @@
 
 using namespace std;
 
-
+//calculates the distance between two molcules
+//molcules are entered as SMILES strings
 double dist(string smile1, string smile2)
 {
   int s1[5];
@@ -22,6 +23,7 @@ double dist(string smile1, string smile2)
     s2[i]=0;
   }
 
+  //calculate the number of C,N,O,P,S in the first smiles string
   for (string::iterator it = smile1.begin(); it !=smile1.end();it++)
     switch (*it)
     {
@@ -31,7 +33,8 @@ double dist(string smile1, string smile2)
     case 'P': s1[3]++; break;
     case 'S': s1[4]++; break;
     }
-  
+
+  //calculate the number of C,N,O,P,S in the second smiles stringa
   for (string::iterator it = smile2.begin(); it !=smile2.end();it++)
     switch (*it)
     {
@@ -42,48 +45,88 @@ double dist(string smile1, string smile2)
     case 'S': s2[4]++; break;
     }
   
+  //determine the 'distance' between these two by determining the difference in atomic composition
+  // and taking a euclidean norm
   double dist = 0;
   for (int i=0;i<5;i++)
     dist += (s1[i]-s2[i]) * (s1[i]-s2[i]);
   return sqrt(dist);
 }
 
-//outputs a new Json corresponding to the filtered old one
+//returns a new Json class corresponding to the filtered old one
+//smile1 is the SMILES string corresponding to the Json file that was inputted,
+// curJson is the current Json being filtered, and thresh is the maximum distance 
+//allowed between two molecules in the filtered Json.
 Json* filter(string smile1, Json* curJson, double thresh)
 {
   Json* filtered;
   filtered = new Json();
+  //for each node in the current Json file, determine the distance between the molecule
+  //represented by that node and the moelcule represetned by smile1
+  //if the distance is less than the threshold, keep this node. 
+  //DO NOT include ANY of the reaction nodes
   for (list<Node*>::iterator it=curJson->NodeList.begin(); it!= curJson->NodeList.end();it++)
   {
-    if (dist(smile1,(*it)->name) < thresh)
-      filtered->NodeList.push_back(new Node(*it));
-    if ((*it)->isReaction)
-      filtered->NodeList.push_back(new Node(*it));
+    if (dist(smile1,(*it)->name) < thresh) //close enough in distance
+      if (!(*it)->isReaction) //not a reaction
+	filtered->NodeList.push_back(new Node(*it));
+  }
+  cout << "Size of altered nodelist before adding reactions: " << filtered->NodeList.size() << endl;
+
+  list<Node*> toAdd; // list of reaction nodes that will be added...
+  //Now go back and add all of the reaction nodes that link the filtered nodes to the original molecule...
+  for (list<Node*>::iterator itOuterNode=filtered->NodeList.begin(); itOuterNode!= filtered->NodeList.end();itOuterNode++)
+  {
+    for (list<Node*>::iterator itReactionNode=curJson->NodeList.begin(); itReactionNode!= curJson->NodeList.end();itReactionNode++)
+    {
+      if ((*itReactionNode)->isReaction)
+      {
+	for (list<Link*>::iterator itLink=curJson->LinkList.begin(); itLink!= curJson->LinkList.end();itLink++)
+	{
+	  if (( (*itLink)->target==(*itOuterNode)->id && (*itLink)->source==(*itReactionNode)->id) ||
+	      ( (*itLink)->source==(*itOuterNode)->id && (*itLink)->target==(*itReactionNode)->id ) )
+	    toAdd.push_back(new Node(*itReactionNode));
+	}
+      }
+    }
+    
   }
 
-  //Now we have all the right nodes, so we have to get rid of the links that don't make sense anymore...
+  for (list<Node*>::iterator it =toAdd.begin();it!=toAdd.end();it++)
+    filtered->NodeList.push_back(*it);
+
+  cout << "Size of altered nodelist after adding reactions: " << filtered->NodeList.size() << endl;
+
+  //  cout << "Nodes that were included in the filter:" << endl;
+  //for (list<Node*>::iterator it=filtered->NodeList.begin();it!=filtered->NodeList.end();it++)
+  // cout << (*it)->toString()<< endl;
+  
+
+  //Now we have all the right nodes, so we go through the curJson list of Links and remove those that don't 
+  //connect any of the nodes that we're interested in
   for (list<Link*>::iterator it=curJson->LinkList.begin(); it!= curJson->LinkList.end();it++)
   {
-    cout << "Current list source: " << (*it)->source << endl;
-    cout << "Current list target: " << (*it)->target << endl;
+    //cout << "Current list source: " << (*it)->source << endl;
+    //cout << "Current list target: " << (*it)->target << endl;
     bool sourceIsGood = false; //whether the source of the link is a node in the new NodeList
     bool targetIsGood = false; //whether the target of the link is a node in the new NodeList
     for (list<Node*>::iterator newit=filtered->NodeList.begin(); newit!= filtered->NodeList.end();newit++)
     {
-      if ((*it)->source == 1 && (*it)->target == 3)
-	  cout << "   comparing to node with id " << (*newit)->id << endl;
       if ((*it)->source == (*newit)->id)
-        {sourceIsGood = true;cout << "good source" << endl;}
+        sourceIsGood = true;
       if ((*it)->target == (*newit)->id)
-	{targetIsGood = true; cout << "good target" << endl;}
+	targetIsGood = true; 
     }
     if (sourceIsGood && targetIsGood) 
     {
+      //cout << "... included" << endl;
       filtered->LinkList.push_back(new Link(*it));
-      cout << " ... found!" << endl;
     }
-    else
-      cout << "..... not found!" << endl;
+    //    else if (sourceIsGood)
+    // cout << "NOT included, but source was good" << endl;
+    //else if (targetIsGood)
+    // cout << "NOT included, but target was good" << endl;
+    //cout << endl << endl;
   }
   filtered->rebalance();
   return filtered;
@@ -129,17 +172,17 @@ int main(int argc, char* argv[])
   for (list<Link*>::iterator it = filtered->LinkList.begin(); it!=filtered->LinkList.end();it++)
   {
     counter++;
-    cout << (*it)->toString() << endl;
+    //    cout << (*it)->toString() << endl;
   }
-  cout << "I count a total of " << counter << " links  in the FILTERED Json file  ../Molecules/AB/LZXFCXXLZCGV-UHFFFAOYSA-N.json" << endl << endl;
+  cout << "I count a total of " << counter << " links  in the FILTERED Json file" << endl;
   
   counter=0;
   for (list<Node*>::iterator it = filtered->NodeList.begin(); it!=filtered->NodeList.end();it++)
   {
     counter++;
-    cout << (*it)->toString() << endl;
+    //    cout << (*it)->toString() << endl;
   }
-  cout << "I count a total of " << counter << " nodes in the FITLERED Json file  ../Molecules/AB/LZXFCXXLZCGV-UHFFFAOYSA-N.json" << endl << endl;
+  cout << "I count a total of " << counter << " nodes in the FITLERED Json file" << endl;
 
   ofstream outputFile("../Molecules/AB/LZXFCXXLZCGV-UHFFFAOYSA-N.json");
   filtered->toFile(&outputFile);

@@ -11,7 +11,7 @@ Json::Json(string file)
   string tmp;
   getline(jsonFile, tmp);
   getline(jsonFile, tmp);
-  
+
   bool done = false;
   while (!done)
   {
@@ -20,9 +20,9 @@ Json::Json(string file)
     {
       //this is a new list element
       getline(jsonFile,tmp);
-      int source = atoi(tmp.substr(22,1).c_str());
+      int source = atoi(tmp.substr(22,tmp.size()-23).c_str());
       getline(jsonFile,tmp);
-      int target = atoi(tmp.substr(22,1).c_str());
+      int target = atoi(tmp.substr(22,tmp.size()-23).c_str());
       getline(jsonFile,tmp);
       int val = atoi(tmp.substr(19,1).c_str());
       LinkList.push_back(new Link(source, target, val));
@@ -31,7 +31,6 @@ Json::Json(string file)
     else
     {
       done = true; // we are done looking at the links
-      cout << "HIT THE LINE " << tmp << " SO WE ARE DONE WITH LINKS" << endl;
     }
   }
   
@@ -46,9 +45,9 @@ Json::Json(string file)
     {
       //this is a new list element
       getline(jsonFile,tmp);
-      int group = atoi(tmp.substr(21,1).c_str());
+      int group = atoi(tmp.substr(21,tmp.size()-22).c_str());
       getline(jsonFile,tmp);
-      int id = atoi(tmp.substr(18,1).c_str());
+      int id = atoi(tmp.substr(18,tmp.size()-19).c_str());
       getline(jsonFile,tmp);
       string name = tmp.substr(21,tmp.size()-28); //ignore the last seven characters: they are always '\t\n", '
       getline(jsonFile,tmp);
@@ -64,10 +63,8 @@ Json::Json(string file)
       getline(jsonFile,tmp);
     }
     else
-    {
       done = true; // we are done looking at the links
-      cout << "HIT THE LINE " << tmp << " SO WE ARE DONE WITH NODES" << endl;
-    }
+
     
   }
 };
@@ -96,7 +93,6 @@ void Json::rebalance()
 
 void Json::toFile(ofstream* fout)
 {
-  cout << "I WAS CALLED" << endl;
   //  ofstream fout(fname.c_str());
   *fout << "{" << endl << "    \"links\": [" << endl;
 
